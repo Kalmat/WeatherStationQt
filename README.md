@@ -12,7 +12,7 @@ This is a python 3 script, based on PyQt5, intended to show:
 
 This new PyQt5 version adds wallpaper and fully transparent background features, but needs more CPU than the PyGame version.
 
-The recommended configuration is a dedicated Raspberry Pi (RPi 3 or above) connected to a 10-inches IPS LED screen (or larger). Looks awesome in any sitting room!!!
+The recommended configuration is a dedicated Raspberry Pi (RPi 3 or above. If you need to use it on a RPi 1 or 2, use PyGame version instead) connected to a 10-inches IPS LED screen (or larger). Looks awesome in any sitting room!!!
 
 The weather station should look like this when all graphic resources are downloaded and options activated (see Configuration section):
 
