@@ -10,7 +10,9 @@ This is a python 3 script, based on PyQt5, intended to show:
 - Sun position Constellation
 - World Clocks if no Internet connection or no weather info gathered or obsolete
 
-The recommended configuration is a dedicated Raspberry Pi (working fine on a RPi 1) connected to a 10-inches IPS LED screen (or larger). Looks awesome in any sitting room!!!
+This new PyQt5 version adds wallpaper and fully transparent background features, but needs more CPU than the PyGame version.
+
+The recommended configuration is a dedicated Raspberry Pi (RPi 3 or above. If you need to use it on a RPi 1 or 2, use PyGame version instead) connected to a 10-inches IPS LED screen (or larger). Looks awesome in any sitting room!!!
 
 The weather station should look like this when all graphic resources are downloaded and options activated (see Configuration section):
 
@@ -42,6 +44,8 @@ And finally, it should look like this with no Internet connection, or "Only Cloc
 6. Install the required modules: "pip3 install module-name" or "python3 -m pip install module-name". The modules you will most likely need to install are: pytz, PyQt5
 7. OpenWeatherMap API key is required (No-Key API days are gone!). Get your own at openweathermap.com, and modify wkey.py script inserting your key in there (openweathermap_key = "YOUR_KEY_HERE"). Should you want other sources, you will have to adapt/struggle with APIs (check pywapi and newsapi to ease integration)
 
+MACOS: In case you get an urllib certificate error, run /Applications/Python\ 3.xx/Install/Certificates.command (xx stands for your Python 3 version)
+
 ### WARNING
 This script uses several graphic resources from third parties. Though they all are free for non-commercial purposes (which is my case), I am not including them to avoid any legal issue or missunderstanding. You can download your own and place them into the resources/ folder, directly or in these other sub-folders, and renaming them with these exact names (or the script will fail):
 - [REQUIRED] alert.png: Icon to show when there is a weather alert
@@ -67,7 +71,7 @@ You can access Settings in four ways:
 
 - It will automatically show up when you run the application for the first time
 - From outside the script: Running wconfig as stand-alone application
-- While the script is running: Press 'm' key or click and hold right mouse button to access Quick Options menu
+- While the script is running: Right-click on the tray icon and select "Open Settings"
 - (Strongly NOT recommended) manually changing settings.json 
 
 You may want to look for and play around with:
@@ -75,15 +79,14 @@ You may want to look for and play around with:
 - Resolution: (XXXX, YYYY) - set the window size (in pixels). If this size matches the screen resolution, it will turn Full Screen
 - Language: SPANISH / ENGLISH
 - Units: METRIC / IMPERIAL
-- Show Background: True / False - will force showing a background image or a solid color
-- Background Mode: FIXED / WEATHER - Will show a fixed image (99.jpg) or a changing image according to weather conditions (0-47.jpg)
+- Show Background: True / False - will force showing a background image. a fully transparent background or a solid color
+- Background Mode: SOLID / FIXED / WEATHER - Will show a solid color, a fixed image (99.jpg) or a changing image according to weather conditions (0-47.jpg)
 - Clock Mode: True / False - will force to always show world clocks (no Internet connection required, so weather will not be shown), or weather info
-- Moon Position: ONCURRENT - instead of Current weather icon (at night time only) / None - no moon phase icon
+- Moon Position: ONCURRENT - instead of Current weather icon (at night time only) / ONHEADER - on header only / BOTH - on current and on header / NOMOON - no moon phase icon
 - Show Constellation: True / False - Will display Sun position Constellation
-- Show News pics: True / False - Will show News pics (hiding weather info while showing news. UPDATE: BBC not providing pics any more)
 - Time Zones: The Time Zones and cities you would like to show on World Clocks (when no connection or no weather info available)
 
-You can also change other behaviors, colors, positions and sizes to adapt it to your needs ... and many other things! 
+You can also change other behaviors and colors to adapt it to your needs ... and many other things! 
 
 Available languages are Spanish and English. If you want other languages, modify the content of settings.json (TODO: localise using gettext instead)
 - Translate all strings in the "Texts" section of the language you want to replace (recommended you replace the "Alternative" entry)
@@ -109,15 +112,14 @@ To run the script:
 
 ## Use it
 
-While running, you can:
+While running, you can access Quick Options Menu by right-clicking on the tray icon:
 
-- Press 'm' or click & hold right mouse button to access Quick Options Menu
-- Press '1', '2' or '3' to change Weather location
-- Press 'c' to show World Clocks (no Internet connection required)
-- Press 'w' or '1', '2' or '3' to go back to weather info
-- Press 'a' or 'b' to select News source and force updating and showing News immediately (will alternate between sources)
-- Press 'h' to show Help screen (also available if you add '-h' argument from command line)
-- Press 'q' or 'Escape' to exit the program
+- Change Weather location and show its information on screen
+- Select News source and show them
+- Show Clocks World Clocks (no Internet connection required) / Back to Weather
+- Open Settings (also available the first time you run the program or as stand-alone application)
+- Show / Hide Help (also available if you add '-h' argument from command line)
+- Select Quit or press 'Escape' to exit the program / exit Help if showing
 
 ---
 

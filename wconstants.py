@@ -71,7 +71,7 @@ ICON_FOLDER = 'resources/icons'
 MOON_FOLDER = 'resources/moon/'
 MOON_W_FOLDER = ICON_FOLDER + ICONSET_REALISTIC
 SUNSIGNS_FOLDER = 'resources/sunsigns/'
-FONTS_FOLDER = 'resources/fonts/'
+FONTS_FOLDER = './resources/fonts/'
 ALERT_ICONFOLDER = 'resources/'
 
 # Other

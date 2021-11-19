@@ -19,9 +19,11 @@ import wconstants
 import qtutils
 import wutils
 import utils
+import bkgutils
 import zoneinfo
 from PyQt5 import QtWidgets, QtCore, QtGui
 from wthrnews_ui import Ui_MainWindow
+import signal
 
 
 settings.debug = False
@@ -53,6 +55,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.localTZ, self.is_dst = zoneinfo.get_local_tz()
         print("Local Time Zone:", self.localTZ, "/ Daylight Saving Time:", ("+" if time.localtime().tm_isdst >= 0 else "")+str(time.localtime().tm_isdst))
 
+        self.setupUi(self)
+
         x, y, locIndex, ncount, nsource, show_help = self.getOpts()
         self.xmax, self.ymax, self.widgets = qtutils.initDisplay(parent=self,
                                                                  pos=(x, y),
@@ -70,10 +74,10 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.imgRatio = 1 if self.dispRatio > 4/3 else 0.9
         self.fineTuning = 0.45
 
-        self.font = QtGui.QFontDatabase.addApplicationFont(wconstants.FONTS_FOLDER + wconstants.numberfont)
+        self.font = qtutils.loadFont(wconstants.FONTS_FOLDER + wconstants.numberfont)
         self.convertQtColors()
         self.font_color = settings.clockc
-        self.setToolTip(qtutils.setHTMLStyle('Right-click to show Quick Menu', qtutils.getRGBAfromColorName("black")))
+        self.setToolTip(qtutils.setHTMLStyle('Right-click to show Quick Menu', color="black", bkgcolor="white"))
 
         self.resizeUI()
 
@@ -104,8 +108,15 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.clock2 = None
         self.clock3 = None
         self.clock4 = None
-        self.keyP = ""
         self.oldPos = self.pos()
+
+        if settings.setAsWallpaper:
+            self.currentWP = bkgutils.getWallPaper()
+            bkgutils.sendBehind(wconstants.SYSTEM_CAPTION)
+
+        self.menu = Menu(self)
+        self.menu.menuOption.connect(self.menuOption)
+        self.menu.show()
 
         if show_help:
             self.repaintHELP()
@@ -225,10 +236,14 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         else:
             subprocess.Popen(cmd + param, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                              creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True)
+        if settings.setAsWallpaper:
+            bkgutils.set_wallpaper(self.currentWP, use_activedesktop=False)
         QtWidgets.QApplication.quit()
 
     @QtCore.pyqtSlot(dict)
     def onDataChanged(self, data):
+
+        self.menu.show()
 
         if settings.debug: print(data)
         contents = data.keys()
@@ -285,7 +300,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.day_label.setText(data["day"])
         self.day_week_label.setText(data["day_week"])
         self.month_label.setText(data["month"])
-        self.by_label.setText(qtutils.setHTMLStyle(data["source"], settings.chighlight, strong=True) + data["by"])
+        self.by_label.setText(qtutils.setHTMLStyle(data["source"], color=settings.chighlight, strong=True) + data["by"])
         self.location_label.setText(data["location"])
 
     def repaintMOON(self, data):
@@ -344,7 +359,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 img = qtutils.resizeImageWithQT(data["alert_icon"], size, size)
                 self.alert_img.setPixmap(img)
                 self.alert_img.setStyleSheet(self.alert_label.styleSheet())
-            self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], data["alert_color"], strong=True))
+            self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
         else:
             self.alert_img.clear()
             self.alert_label.clear()
@@ -515,78 +530,99 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.sep_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.minutes_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
 
-    def contextMenuEvent(self, event):
+    # Uncomment this to use context menu and not tray icon only:
+    # def contextMenuEvent(self, event):
+    #     self.menu.showMenu(event.pos())
 
-        contextMenu = QtWidgets.QMenu(self)
-        contextMenu.setStyleSheet("""
-            QMenu {border: 1px inset grey; background-color: #fff; color: #000; padding: 5;}
-            QMenu:selected {background-color: #2fe; color: #000;}""")
-
-        locAct = contextMenu.addMenu("Select Weather location")
-        for i, loc in enumerate(settings.location):
-            locAct.addAction(loc[0], self.execAction, str(i+1))
-
-        newsAct = contextMenu.addMenu("Select News source")
-        newsAct.addAction(wconstants.NEWS_1, self.execAction, "A")
-        newsAct.addAction(wconstants.NEWS_2, self.execAction, "B")
-
-        contextMenu.addSeparator()
-        if self.onlyClock:
-            contextMenu.addAction("Set Weather mode", self.setWeatherAction, "W")
+    @QtCore.pyqtSlot(str)
+    def menuOption(self, key):
+        if key == "H":
+            if self.showingHelp:
+                self.help_label.hide()
+                self.showingHelp = False
+            else:
+                self.showingHelp = True
+                self.repaintHELP()
+        elif key == "Q":
+            event = QtGui.QCloseEvent()
+            self.update_data.catchAction(event)
         else:
-            contextMenu.addAction("Set Clock-only mode", self.setClockAction, "C")
-        contextMenu.addAction("Open Settings", self.execAction, "S")
-
-        contextMenu.addSeparator()
-        contextMenu.addAction("Help", self.execAction, "H")
-        contextMenu.addAction("Quit", self.execAction, "Esc")
-
-        option = contextMenu.exec_(self.mapToGlobal(event.pos()))
-        try:
-            key = option.shortcut().toString()
-            qtutils.sendkeys(self, char=key)
-        except:
-            pass
-
-    def execAction(self):
-        pass
-
-    def setClockAction(self):
-        self.onlyClock = True
-
-    def setWeatherAction(self):
-        self.onlyClock = False
-
-    def closeEvent(self, event):
-        self.update_data.catchAction(event)
-        super(Window, self).closeEvent(event)
+            char = QtGui.QKeySequence.fromString(key)[0]
+            event = QtGui.QKeyEvent(QtCore.QEvent.KeyPress, char, QtCore.Qt.NoModifier)
+            self.update_data.catchAction(event)
 
     def keyPressEvent(self, event):
 
-        if event.key() in (QtCore.Qt.Key_Q, QtCore.Qt.Key_Escape) and self.showingHelp:
-            self.help_label.hide()
-            self.showingHelp = False
+        if event.key() == QtCore.Qt.Key_Escape:
+            if self.showingHelp:
+                self.help_label.hide()
+                self.showingHelp = False
+            else:
+                event = QtGui.QCloseEvent()
+                self.update_data.catchAction(event)
 
-        elif event.key() == QtCore.Qt.Key_H and not self.showingHelp:
-            self.repaintHELP()
-
-        else:
-            self.update_data.catchAction(event)
-
-        self.keyP = event.key()
         super(Window, self).keyPressEvent(event)
 
     def mousePressEvent(self, event):
         self.oldPos = event.globalPos()
-        # self.update_data.catchAction(event)
         super(Window, self).mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if not self.isFullScreen():
+        if not self.isFullScreen() and not settings.showBkg:
             delta = QtCore.QPoint(event.globalPos() - self.oldPos)
             self.move(self.x() + delta.x(), self.y() + delta.y())
         self.oldPos = event.globalPos()
         super(Window, self).mouseMoveEvent(event)
+
+    def closeEvent(self, event):
+        self.update_data.catchAction(eventType=QtGui.QCloseEvent)
+        super(Window, self).closeEvent(event)
+
+
+class Menu(QtWidgets.QWidget):
+
+    menuOption = QtCore.pyqtSignal(str)
+
+    def __init__(self, *args, **kwargs):
+        QtWidgets.QWidget.__init__(self, *args, **kwargs)
+
+        self.setupUI()
+
+    def setupUI(self):
+
+        self.contextMenu = QtWidgets.QMenu(self)
+        self.contextMenu.setStyleSheet("""
+            QMenu {border: 1px inset #666; font-size: 18px; background-color: #333; color: #fff; padding: 5; padding-left: 20}
+            QMenu:selected {background-color: #666; color: #fff;}""")
+
+        self.locAct = self.contextMenu.addMenu("Select Weather location")
+        self.locAct.addAction(settings.location[0][0], lambda: self.execAction("1"))
+        self.locAct.addAction(settings.location[1][0], lambda: self.execAction("2"))
+        self.locAct.addAction(settings.location[2][0], lambda: self.execAction("3"))
+
+        self.newsAct = self.contextMenu.addMenu("Select News source")
+        self.newsAct.addAction(wconstants.NEWS_1, lambda: self.execAction("A"))
+        self.newsAct.addAction(wconstants.NEWS_2, lambda: self.execAction("B"))
+
+        self.contextMenu.addSeparator()
+        self.contextMenu.addAction("Toggle Clock/Weather mode", lambda: self.execAction("C"))
+        self.contextMenu.addAction("Open Settings", lambda: self.execAction("S"))
+
+        self.contextMenu.addSeparator()
+        self.contextMenu.addAction("Show/Hide Help", lambda: self.execAction("H"))
+        self.contextMenu.addAction("Quit", lambda: self.execAction("Q"))
+
+        self.trayIcon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(utils.resource_path(wconstants.SYSTEM_ICON)), self)
+        self.trayIcon.setContextMenu(self.contextMenu)
+        self.trayIcon.setToolTip("Weather & News by alef")
+        self.trayIcon.show()
+
+    def showMenu(self, pos=QtCore.QPoint(0, 0)):
+        self.contextMenu.exec_(self.mapToGlobal(pos))
+
+    def execAction(self, key):
+        print("ACTION", key)
+        self.menuOption.emit(key)
 
 
 class UpdateData(QtWidgets.QMainWindow):
@@ -597,6 +633,9 @@ class UpdateData(QtWidgets.QMainWindow):
     def __init__(self, parent=None, x=None, y=None, locIndex=0, ncount=0, nsource=""):
         QtWidgets.QMainWindow.__init__(self, parent)
         if settings.debug: print("INIT", time.strftime("%H:%M:%S"))
+
+        if settings.setAsWallpaper:
+            self.currentWP = bkgutils.getWallPaper()
 
         self.xmax = x
         self.ymax = y
@@ -1331,25 +1370,31 @@ class UpdateData(QtWidgets.QMainWindow):
 
     def catchAction(self, event):
 
-        if isinstance(event, QtGui.QCloseEvent):
 
+        if isinstance(event, QtGui.QCloseEvent):
             if self.configRun:
                 self.configQuit.set()
                 self.configRun.join()
+            if settings.setAsWallpaper:
+                bkgutils.set_wallpaper(self.currentWP, use_activedesktop=False)
             QtWidgets.QApplication.quit()
 
         if isinstance(event, QtGui.QKeyEvent):
 
-            if event.key() in (QtCore.Qt.Key_Q, QtCore.Qt.Key_Escape):
+            key = event.key()
+
+            if key in (QtCore.Qt.Key_Q, QtCore.Qt.Key_Escape):
                 if self.configRun:
                     self.configQuit.set()
                     self.configRun.join()
+                if settings.setAsWallpaper:
+                    bkgutils.set_wallpaper(self.currentWP, use_activedesktop=False)
                 QtWidgets.QApplication.quit()
 
-            elif "1" <= QtGui.QKeySequence(event.key()).toString() <= str(len(settings.location)) and \
-                    not settings.clockMode and self.keyP != event.key():
+            elif "1" <= QtGui.QKeySequence(key).toString() <= str(len(settings.location)) and \
+                    not settings.clockMode and self.keyP != key:
                 # Change Weather Location (assigned to numbers) and show Weather
-                locIndex = int(QtGui.QKeySequence(event.key()).toString())
+                locIndex = int(QtGui.QKeySequence(key).toString())
                 self.user_clockMode = False
                 self.location = settings.location[locIndex - 1][0]
                 self.zip_code = settings.location[locIndex - 1][1]
@@ -1358,29 +1403,29 @@ class UpdateData(QtWidgets.QMainWindow):
                 self.bkgCodePrev = None
                 self.update_weather(firstRun=True)
 
-            elif event.key() in (QtCore.Qt.Key_A, QtCore.Qt.Key_B) and \
-                    not settings.clockMode and self.keyP != event.key():
+            elif key in (QtCore.Qt.Key_A, QtCore.Qt.Key_B) and \
+                    not settings.clockMode and self.keyP != key:
                 # Select first (A) or second (B) News source and force update/showing News
-                if event.key() == QtCore.Qt.Key_A:
+                if key == QtCore.Qt.Key_A:
                     self.update_news(wconstants.nsource1)
-                elif event.key() == QtCore.Qt.Key_B:
+                elif key == QtCore.Qt.Key_B:
                     self.update_news(wconstants.nsource2)
                 self.update_news()
 
-            elif event.key() == QtCore.Qt.Key_S and not self.showingConfig:
+            elif key == QtCore.Qt.Key_S and not self.showingConfig:
                 self.show_config()
 
-            elif event.key() == QtCore.Qt.Key_C and not self.user_clockMode and not settings.clockMode:
-                # World Clocks Mode (no weather)
-                self.user_clockMode = True
-                self.show_only_clock()
+            elif key == QtCore.Qt.Key_C:
+                if self.user_clockMode:
+                    # Back to Weather mode
+                    self.user_clockMode = False
+                    self.update_weather()
+                else:
+                    # World Clocks Mode (no weather)
+                    self.user_clockMode = True
+                    self.show_only_clock()
 
-            elif event.key() == QtCore.Qt.Key_W and self.user_clockMode and not settings.clockMode:
-                # Back to Weather mode
-                self.user_clockMode = False
-                self.update_weather()
-
-            self.keyP = event.key()
+            self.keyP = key
 
     def run(self):
 
@@ -1440,15 +1485,28 @@ class UpdateNews(QtCore.QThread):
         QtCore.QThread.run(self)
 
 
+def sigint_handler(*args):
+    # https://stackoverflow.com/questions/4938723/what-is-the-correct-way-to-make-my-pyqt-application-quit-when-killed-from-the-co
+    qtutils.sendkeys(win, "Esc")
+    # app.closeAllWindows()
+
+
 def exception_hook(exctype, value, traceback):
     sys._excepthook(exctype, value, traceback)
     sys.exit(1)
 
 
 if __name__ == "__main__":
-    sys._excepthook = sys.excepthook
-    sys.excepthook = exception_hook
     app = QtWidgets.QApplication(sys.argv)
+    if "python" in sys.executable.lower():
+        # This will allow to manage Ctl-C interruption (e.g. when running from IDE)
+        signal.signal(signal.SIGINT, sigint_handler)
+        timer = QtCore.QTimer()
+        timer.start(500)
+        timer.timeout.connect(lambda: None)
+        # This will allow to show some tracebacks (not all, anyway)
+        sys._excepthook = sys.excepthook
+        sys.excepthook = exception_hook
     win = Window()
     win.show()
     try:

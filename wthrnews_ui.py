@@ -806,7 +806,7 @@ class Ui_MainWindow(object):
         sizePolicy.setHeightForWidth(self.alert_img.sizePolicy().hasHeightForWidth())
         self.alert_img.setSizePolicy(sizePolicy)
         font = QtGui.QFont()
-        font.setFamily("Roboto Medium")
+        font.setFamily("Roboto Condensed")
         font.setPointSize(15)
         font.setBold(True)
         font.setWeight(75)

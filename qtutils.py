@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
-import sys
+import bkgutils
 import utils
 from PyQt5 import QtWidgets, QtCore, QtGui
 
@@ -9,17 +8,26 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 def initDisplay(parent, pos=(None, None), size=(300, 300), setAsWallpaper=False, fullScreen=False, frameless=False,
                 transparentBkg=False, opacity=1, caption=None, icon=None, aot=False, aob=False):
 
-    # uic.loadUi("resources/ui/wthrnews.ui", self)  # --> Is this necessary?
-    parent.setupUi(parent)
+    parent.setWindowTitle(caption)
 
     xmax, ymax = size
-    widgets = parent.centralwidget.findChildren(QtCore.QObject)
+    try:
+        widgets = parent.centralwidget.findChildren(QtCore.QObject)
+    except:
+        try:
+            widgets = parent.centralwidget.findChildren(QtCore.QObject)
+        except:
+            widgets = []
     screen = QtWidgets.QApplication.primaryScreen()
     screenSize = screen.size()
 
-    if xmax == screenSize.width() or ymax == screenSize.height() or setAsWallpaper or fullScreen:
+    if xmax >= screenSize.width() or ymax >= screenSize.height() or setAsWallpaper or fullScreen:
         if setAsWallpaper:
+            pass
             parent.setWindowFlags(QtCore.Qt.WindowStaysOnBottomHint | QtCore.Qt.FramelessWindowHint)
+            # This is not working at this point. It seems to be necessary to wait a little
+            # if caption:
+            #     bkgutils.sendBehind(caption)
         else:
             parent.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         parent.showFullScreen()
@@ -48,11 +56,26 @@ def initDisplay(parent, pos=(None, None), size=(300, 300), setAsWallpaper=False,
     if aot:
         flags = parent.windowFlags() | QtCore.Qt.WindowStaysOnTopHint
         parent.setWindowFlags(flags)
-    elif aob:
+    elif aob and not setAsWallpaper:
         flags = parent.windowFlags() | QtCore.Qt.WindowStaysOnBottomHint
         parent.setWindowFlags(flags)
 
     return xmax, ymax, widgets
+
+
+def getScreenSize():
+    screen = QtWidgets.QApplication.primaryScreen()
+    return screen.size()
+
+
+def loadFont(font):
+    loadedFont = -1
+    fontId = QtGui.QFontDatabase.addApplicationFont(utils.resource_path(font))
+    if fontId >= 0:
+        families = QtGui.QFontDatabase.applicationFontFamilies(fontId)
+        if len(families) > 0:
+            loadedFont = QtGui.QFont(families[0])
+    return loadedFont
 
 
 class Marquee(QtWidgets.QLabel):
@@ -334,7 +357,7 @@ def sendkeys(parent, char="", qkey=None, modifier=QtCore.Qt.NoModifier, text=Non
         event = QtGui.QKeyEvent(QtCore.QEvent.KeyPress, char, modifier)
     else:
         event = QtGui.QKeyEvent(QtCore.QEvent.KeyPress, char, modifier, text)
-    QtCore.QCoreApplication.postEvent(parent, event)
+    QtCore.QCoreApplication.sendEvent(parent, event)
 
 
 def createImgFromText(text, font, bcolor=QtGui.QColor(QtCore.Qt.black), fcolor=QtGui.QColor(QtCore.Qt.white), saveFile=""):
@@ -355,9 +378,15 @@ def createImgFromText(text, font, bcolor=QtGui.QColor(QtCore.Qt.black), fcolor=Q
     return img
 
 
-def resizeImageWithQT(src, width, height):
-    pixmap = QtGui.QPixmap(utils.resource_path(src))
-    pixmap_resized = pixmap.scaled(int(width), int(height), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+def resizeImageWithQT(src, width, height, keepAspect=True):
+    try:
+        pixmap = QtGui.QPixmap(utils.resource_path(src))
+        if keepAspect:
+            pixmap_resized = pixmap.scaled(int(width), int(height), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        else:
+            pixmap_resized = pixmap.scaled(int(width), int(height), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
+    except:
+        pixmap_resized = None
     return pixmap_resized
 
 
@@ -451,15 +480,27 @@ def getRGBAfromColorRGB(color):
     return r, g, b, a
 
 
-def setHTMLStyle(text, color=None, font=None, fontSize=None, align=None, valign=None, strong=False):
+def setHTMLStyle(text, color=None, bkgcolor=None, font=None, fontSize=None, align=None, valign=None, strong=False):
 
-    colorHTML = fontHTML = fontSizeHTML = alignHTML = valignHTML = ""
+    colorHTML = bkgcolorHTML = fontHTML = fontSizeHTML = alignHTML = valignHTML = ""
     if color:
-        colorRGB = color.replace("rgba(", "").replace("rgb(", "").replace(")", ""). split(",")
-        r = "%0.2X" % int(colorRGB[0])
-        g = "%0.2X" % int(colorRGB[1])
-        b = "%0.2X" % int(colorRGB[2])
-        colorHTML = "color:#%s;" % (r+g+b)
+        if "rgb" in color:
+            colorRGB = color.replace("rgba(", "").replace("rgb(", "").replace(")", ""). split(",")
+            r = "%0.2X" % int(colorRGB[0])
+            g = "%0.2X" % int(colorRGB[1])
+            b = "%0.2X" % int(colorRGB[2])
+            colorHTML = "color:#%s;" % (r+g+b)
+        else:
+            colorHTML = "color:%s;" % color
+    if bkgcolor:
+        if "rgb" in bkgcolor:
+            bkgcolorRGB = bkgcolor.replace("rgba(", "").replace("rgb(", "").replace(")", "").split(",")
+            r = "%0.2X" % int(bkgcolorRGB[0])
+            g = "%0.2X" % int(bkgcolorRGB[1])
+            b = "%0.2X" % int(bkgcolorRGB[2])
+            bkgcolorHTML = "background-color:#%s;" % (r + g + b)
+        else:
+            bkgcolorHTML = "background-color:%s;" % bkgcolor
     if font:
         fontHTML = "font-family:%s;" % font
     if fontSize:
@@ -470,9 +511,9 @@ def setHTMLStyle(text, color=None, font=None, fontSize=None, align=None, valign=
         valignHTML = "vertical-align:%s;" % valign
     marginHTML = "margin-top:-10%;"
     if strong:
-        style = "<span style=\"%s%s%s%s%s\"><strong>%s</strong></span>" % (colorHTML, fontHTML, fontSizeHTML, alignHTML, valignHTML, text)
+        style = "<span style=\"%s%s%s%s%s%s\"><strong>%s</strong></span>" % (colorHTML, bkgcolorHTML, fontHTML, fontSizeHTML, alignHTML, valignHTML, text)
     else:
-        style = "<span style=\"%s%s%s%s%s%s\">%s</span>" % (marginHTML, colorHTML, fontHTML, fontSizeHTML, alignHTML, valignHTML, text)
+        style = "<span style=\"%s%s%s%s%s%s%s\">%s</span>" % (marginHTML, bkgcolorHTML, colorHTML, fontHTML, fontSizeHTML, alignHTML, valignHTML, text)
     return style
 
 
