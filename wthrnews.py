@@ -621,7 +621,6 @@ class Menu(QtWidgets.QWidget):
         self.contextMenu.exec_(self.mapToGlobal(pos))
 
     def execAction(self, key):
-        print("ACTION", key)
         self.menuOption.emit(key)
 
 
