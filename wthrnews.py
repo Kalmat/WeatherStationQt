@@ -77,7 +77,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.font = qtutils.loadFont(wconstants.FONTS_FOLDER + wconstants.numberfont)
         self.convertQtColors()
         self.font_color = settings.clockc
-        self.setToolTip(qtutils.setHTMLStyle('Right-click to show Quick Menu', color="black", bkgcolor="white"))
+        # self.setToolTip(qtutils.setHTMLStyle('Right-click to show Quick Menu', color="black", bkgcolor="white"))
 
         self.resizeUI()
 

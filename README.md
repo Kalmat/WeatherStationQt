@@ -48,6 +48,7 @@ MACOS: In case you get an urllib certificate error, run /Applications/Python\ 3.
 
 ### WARNING
 This script uses several graphic resources from third parties. Though they all are free for non-commercial purposes (which is my case), I am not including them to avoid any legal issue or missunderstanding. You can download your own and place them into the resources/ folder, directly or in these other sub-folders, and renaming them with these exact names (or the script will fail):
+
 - [REQUIRED] alert.png: Icon to show when there is a weather alert
 - [REQUIRED] settings.ico: Icon for settings application
 - [REQUIRED] weather.ico: Icon for Weather & News application
