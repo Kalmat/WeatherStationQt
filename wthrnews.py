@@ -1,32 +1,32 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import getopt
+import json
+import locale
 import os
 import platform
+import signal
 import subprocess
 import sys
-import getopt
 import threading
 import time
-import locale
-import urllib.request
-import json
-import xml.etree.ElementTree as ET
 import traceback
+import urllib.request
+import xml.etree.ElementTree as ET
+
+import bkgutils
+import qtutils
+import utils
+import webutils
+from PyQt5 import QtWidgets, QtCore, QtGui
+
 import settings
 import wconfig
 import wconstants
-import qtutils
 import wutils
-import utils
-import bkgutils
 import zoneinfo
-from PyQt5 import QtWidgets, QtCore, QtGui
 from wthrnews_ui import Ui_MainWindow
-import signal
-
-
-settings.debug = False
 
 
 class Window(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -55,16 +55,24 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.localTZ, self.is_dst = zoneinfo.get_local_tz()
         print("Local Time Zone:", self.localTZ, "/ Daylight Saving Time:", ("+" if time.localtime().tm_isdst >= 0 else "")+str(time.localtime().tm_isdst))
 
+        self.currentWP = bkgutils.getWallpaper()
+        self.parent = self.parent()
         self.setupUi(self)
+        self.widgets = self.centralwidget.findChildren(QtCore.QObject)
 
         x, y, locIndex, ncount, nsource, show_help = self.getOpts()
-        self.xmax, self.ymax, self.widgets = qtutils.initDisplay(parent=self,
-                                                                 pos=(x, y),
-                                                                 size=settings.dispSize,
-                                                                 setAsWallpaper=settings.setAsWallpaper,
-                                                                 transparentBkg=not settings.showBkg,
-                                                                 caption=wconstants.SYSTEM_CAPTION,
-                                                                 icon=wconstants.SYSTEM_ICON)
+        self.xmax, self.ymax = qtutils.initDisplay(parent=self,
+                                                   pos=(x, y),
+                                                   size=settings.dispSize,
+                                                   noResize=True,
+                                                   setAsWallpaper=settings.setAsWallpaper,
+                                                   opacity=255 * (1 if settings.showBkg else 0),
+                                                   caption=wconstants.SYSTEM_CAPTION,
+                                                   icon=wconstants.SYSTEM_ICON)
+        if settings.setAsWallpaper:
+            x, y, self.xmax, self.ymax = bkgutils.getWorkArea()
+            self.setGeometry(x, y, self.xmax, self.ymax)
+
         self.xmargin = self.xmax * 0.01
         self.ymargin = self.ymax * 0.01
         self.xgap = self.xmargin * 3
@@ -77,14 +85,15 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.font = qtutils.loadFont(wconstants.FONTS_FOLDER + wconstants.numberfont)
         self.convertQtColors()
         self.font_color = settings.clockc
-        # self.setToolTip(qtutils.setHTMLStyle('Right-click to show Quick Menu', color="black", bkgcolor="white"))
-
-        self.resizeUI()
+        # self.setToolTip(qtutils.setHTMLStyle('Click the tray icon to show Quick Menu', color="black", bkgcolor="white"))
 
         if settings.showBkg:
             style = qtutils.setStyleSheet(self.alert_label.styleSheet(), settings.nBkg, settings.nc)
         else:
             style = qtutils.setColor(self.alert_label.styleSheet(), settings.nc)
+
+        self.resizeUI()
+
         self.marquee = qtutils.Marquee(parent=self.alert_label,
                                        stylesheet=style,
                                        direction=QtCore.Qt.RightToLeft,
@@ -110,9 +119,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.clock4 = None
         self.oldPos = self.pos()
 
-        if settings.setAsWallpaper:
-            self.currentWP = bkgutils.getWallPaper()
-            bkgutils.sendBehind(wconstants.SYSTEM_CAPTION)
+        self.sentBehind = False
+        self.updateDataStart(locIndex, ncount, nsource)
 
         self.menu = Menu(self)
         self.menu.menuOption.connect(self.menuOption)
@@ -120,8 +128,6 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
         if show_help:
             self.repaintHELP()
-
-        self.updateDataStart(locIndex, ncount, nsource)
 
     def getOpts(self):
 
@@ -184,10 +190,10 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.bkg_img.setAutoFillBackground(True)
             elif settings.bkgMode == wconstants.BKG_SOLID:
                 self.bkg_img.clear()
-                self.bkg_img.setStyleSheet(qtutils.setBkGColorAlpha(qtutils.setBkGColor(self.bkg_img.styleSheet(), settings.cBkg), 255))
+                self.bkg_img.setStyleSheet(qtutils.setBkgColorAlpha(qtutils.setBkgColor(self.bkg_img.styleSheet(), settings.cBkg), 255))
         else:
             self.bkg_img.clear()
-            self.bkg_img.setStyleSheet(qtutils.setBkGColorAlpha(qtutils.setBkGColor(self.bkg_img.styleSheet(), settings.cBkg), 0))
+            self.bkg_img.setStyleSheet(qtutils.setBkgColorAlpha(qtutils.setBkgColor(self.bkg_img.styleSheet(), settings.cBkg), 0))
         self.gridLayoutWidget.resize(self.xmax, self.ymax)
 
         for w in self.widgets:
@@ -222,28 +228,15 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.update_data = UpdateData(self, self.geometry().width(), self.geometry().height(), locIndex, ncount, nsource)
         self.update_data.dataChanged.connect(self.onDataChanged)
         self.update_data.restart.connect(self.onRestart)
+        self.update_data.closeAll.connect(self.closeAll)
         self.update_data.run()
-
-    @QtCore.pyqtSlot(int, int, str)
-    def onRestart(self, locIndex, ncount, nsource):
-        param = " -x %s -y %s -l %s -n %s -s %s" % (str(self.pos().x()), str(self.pos().y()), str(locIndex), str(ncount), str(nsource))
-        cmd = os.path.abspath(sys.executable)
-        DETACHED_PROCESS = 0x00000008
-        CREATE_NEW_PROCESS_GROUP = 0x00000200
-        if "python" in cmd:
-            cmd += " " + os.path.abspath(__file__) + param
-            subprocess.Popen(cmd, creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True)
-        else:
-            subprocess.Popen(cmd + param, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True)
-        if settings.setAsWallpaper:
-            bkgutils.set_wallpaper(self.currentWP, use_activedesktop=False)
-        QtWidgets.QApplication.quit()
 
     @QtCore.pyqtSlot(dict)
     def onDataChanged(self, data):
 
-        self.menu.show()
+        if not self.sentBehind and settings.showBkg and settings.setAsWallpaper and ("Windows" in platform.platform() or "Linux" in platform.platform()):
+            # Had to bring this here because it doesn't find the window (title) until 3-4 iterations
+            self.sentBehind = bkgutils.sendBehind(wconstants.SYSTEM_CAPTION)
 
         if settings.debug: print(data)
         contents = data.keys()
@@ -292,7 +285,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
     def repaintBKG(self, data):
         if self.bkg != data["bkg"]:
             self.bkg = data["bkg"]
-            img = QtGui.QPixmap(utils.resource_path(self.bkg))
+            img = QtGui.QPixmap(utils.resource_path(__file__, self.bkg))
             img = img.scaled(self.xmax, self.ymax, QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
             self.bkg_img.setPixmap(img)
 
@@ -311,14 +304,14 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         elif self.moon != icon or not self.moon_img.pixmap():
             self.moon = icon
             size = int(data["moon_icon_size"] * self.imgRatio)
-            img = qtutils.resizeImageWithQT(self.moon, size, size)
+            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, self.moon), size, size, expand=False)
             self.moon_img.setPixmap(img)
 
     def repaintSUNSIGN(self, data):
         if self.sunsign != data["sunsign_icon"]:
             self.sunsign = data["sunsign_icon"]
             size = int(data["sunsign_icon_size"] * self.imgRatio)
-            img = qtutils.resizeImageWithQT(self.sunsign, size, size)
+            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, self.sunsign), size, size, expand=False)
             self.sunsign_img.setPixmap(img)
 
     def repaintSEP(self, data):
@@ -334,14 +327,14 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         if self.iconNow != data["icon_now"]:
             self.iconNow = data["icon_now"]
             size = data["icon_now_size"] * self.imgRatio
-            img = qtutils.resizeImageWithQT(data["icon_now"], size, size)
+            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["icon_now"]), size, size, expand=False)
             self.cc_img.setPixmap(img)
             self.cc_img.adjustSize()
         if "icon_now_moon_icon" in data.keys():
             if self.moonIconNow != data["icon_now_moon_icon"]:
                 self.moonIconNow = data["icon_now_moon_icon"]
                 size = int(data["icon_now_moon_size"] * self.imgRatio)
-                img2 = qtutils.resizeImageWithQT(data["icon_now_moon_icon"], size, size)
+                img2 = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["icon_now_moon_icon"]), size, size, expand=False)
                 self.cc_moon_img.setPixmap(img2)
                 self.cc_moon_img.adjustSize()
         else:
@@ -356,7 +349,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         if data["alert"] != "None":
             if not self.alert_img.pixmap():
                 size = int(data["icon_now_moon_size"] * self.imgRatio)
-                img = qtutils.resizeImageWithQT(data["alert_icon"], size, size)
+                img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["alert_icon"]), size, size, expand=False)
                 self.alert_img.setPixmap(img)
                 self.alert_img.setStyleSheet(self.alert_label.styleSheet())
             self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
@@ -379,7 +372,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                     w.setFixedHeight(w.fontMetrics().height())
                 else:
                     size = int(data["ff_icon_size"] * self.imgRatio)
-                    img = qtutils.resizeImageWithQT(data[name], size, size)
+                    img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data[name]), size, size, expand=False)
                     w.setPixmap(img)
                     w.adjustSize()
 
@@ -401,9 +394,9 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 else:
                     if name in keys:
                         size = int(data["fh_icon_size"] * self.imgRatio)
-                        img = qtutils.resizeImageWithQT(data[name], size, size)
+                        img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data[name]), size, size, expand=False)
                         w.setPixmap(img)
-                        # w.adjustSize()
+                        w.adjustSize()
                     else:
                         w.clear()
 
@@ -428,10 +421,10 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
             self.help_label = QtWidgets.QLabel()
             self.help_label.setFont(self.cc_other_cond_label.font())
             if not self.help:
-                with open(utils.resource_path(wconstants.HELP_FILE), encoding='utf-8') as file:
+                with open(utils.resource_path(__file__, wconstants.HELP_FILE), encoding='utf-8') as file:
                     self.help = json.load(file)
             self.help_label.setGeometry(int(self.xgap*2), int(self.ygap*2), self.xmax - int(self.xgap*4), self.ymax - int(self.ygap*4))
-            self.help_label.setStyleSheet(qtutils.setBkGColorAlpha(self.marquee.styleSheet(), 255))
+            self.help_label.setStyleSheet(qtutils.setBkgColorAlpha(self.marquee.styleSheet(), 255))
             text = ""
             for key in self.help.keys():
                 text += "\t" + self.help[key] + "\n"
@@ -530,9 +523,25 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.sep_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.minutes_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
 
-    # Uncomment this to use context menu and not tray icon only:
-    # def contextMenuEvent(self, event):
-    #     self.menu.showMenu(event.pos())
+    # Comment this to use tray icon only and not standard context menu (which should not activate in Wallpaper Mode):
+    def contextMenuEvent(self, event):
+        if not settings.setAsWallpaper:
+            self.menu.showMenu(event.pos())
+        super(Window, self).contextMenuEvent(event)
+
+    @QtCore.pyqtSlot(int, int, str)
+    def onRestart(self, locIndex, ncount, nsource):
+        param = " -x %s -y %s -l %s -n %s -s %s" % (str(self.pos().x()), str(self.pos().y()), str(locIndex), str(ncount), str(nsource))
+        cmd = os.path.abspath(sys.executable)
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        if "python" in cmd:
+            cmd += " " + os.path.abspath(__file__) + param
+            subprocess.Popen(cmd, creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, shell=False, close_fds=True)
+        else:
+            subprocess.Popen(cmd + param, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, shell=False, close_fds=True)
+        self.closeAll()
 
     @QtCore.pyqtSlot(str)
     def menuOption(self, key):
@@ -544,8 +553,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.showingHelp = True
                 self.repaintHELP()
         elif key == "Q":
-            event = QtGui.QCloseEvent()
-            self.update_data.catchAction(event)
+            self.closeAll()
         else:
             char = QtGui.QKeySequence.fromString(key)[0]
             event = QtGui.QKeyEvent(QtCore.QEvent.KeyPress, char, QtCore.Qt.NoModifier)
@@ -558,9 +566,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.help_label.hide()
                 self.showingHelp = False
             else:
-                event = QtGui.QCloseEvent()
-                self.update_data.catchAction(event)
-
+                self.update_data.catchAction(QtCore.QEvent.Close)
+                self.closeAll()
         super(Window, self).keyPressEvent(event)
 
     def mousePressEvent(self, event):
@@ -568,15 +575,24 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         super(Window, self).mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if not self.isFullScreen() and not settings.showBkg:
+        if not self.isFullScreen() and not settings.showBkg and not settings.setAsWallpaper:
             delta = QtCore.QPoint(event.globalPos() - self.oldPos)
             self.move(self.x() + delta.x(), self.y() + delta.y())
         self.oldPos = event.globalPos()
         super(Window, self).mouseMoveEvent(event)
 
     def closeEvent(self, event):
-        self.update_data.catchAction(eventType=QtGui.QCloseEvent)
-        super(Window, self).closeEvent(event)
+        self.update_data.catchAction(QtCore.QEvent.Close)
+        self.closeAll()
+
+    @QtCore.pyqtSlot()
+    def closeAll(self):
+        if settings.setAsWallpaper:
+            self.setParent(self.parent)
+            self.hide()
+            # For an unknown reason, it remains in the background, so it requires to force setting previous wallpaper
+            bkgutils.setWallpaper(self.currentWP)
+        QtWidgets.QApplication.quit()
 
 
 class Menu(QtWidgets.QWidget):
@@ -612,9 +628,9 @@ class Menu(QtWidgets.QWidget):
         self.contextMenu.addAction("Show/Hide Help", lambda: self.execAction("H"))
         self.contextMenu.addAction("Quit", lambda: self.execAction("Q"))
 
-        self.trayIcon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(utils.resource_path(wconstants.SYSTEM_ICON)), self)
+        self.trayIcon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(utils.resource_path(__file__, wconstants.SYSTEM_ICON)), self)
         self.trayIcon.setContextMenu(self.contextMenu)
-        self.trayIcon.setToolTip("Weather & News by alef")
+        self.trayIcon.setToolTip("Weather and News by alef")
         self.trayIcon.show()
 
     def showMenu(self, pos=QtCore.QPoint(0, 0)):
@@ -627,14 +643,12 @@ class Menu(QtWidgets.QWidget):
 class UpdateData(QtWidgets.QMainWindow):
 
     dataChanged = QtCore.pyqtSignal(dict)
+    closeAll = QtCore.pyqtSignal()
     restart = QtCore.pyqtSignal(int, int, str)
 
     def __init__(self, parent=None, x=None, y=None, locIndex=0, ncount=0, nsource=""):
         QtWidgets.QMainWindow.__init__(self, parent)
         if settings.debug: print("INIT", time.strftime("%H:%M:%S"))
-
-        if settings.setAsWallpaper:
-            self.currentWP = bkgutils.getWallPaper()
 
         self.xmax = x
         self.ymax = y
@@ -792,12 +806,12 @@ class UpdateData(QtWidgets.QMainWindow):
     def check_location(self):
         if settings.debug: print("GET_LOC", time.strftime("%H:%M:%S"))
 
-        loc = utils.get_location_by_ip(wconstants.gIPURL % settings.lang)
+        loc = webutils.get_location_by_ip(wconstants.gIPURL % settings.lang)
         if loc:
             loc1 = (float(loc[3]), float(loc[4]))
             loc2 = (float(settings.location[0][1].split("lat=")[1].split("&")[0]),
                     float(settings.location[0][1].split("&lon=")[1]))
-            dist = utils.get_distance(loc1, loc2, settings.disp_units)
+            dist = webutils.get_distanceByCoordinates(loc1, loc2, settings.disp_units)
             if dist < int(wconstants.distLimit[settings.disp_units]):
                 dist = 0
             if settings.use_current_location:
@@ -1369,14 +1383,13 @@ class UpdateData(QtWidgets.QMainWindow):
 
     def catchAction(self, event):
 
-
         if isinstance(event, QtGui.QCloseEvent):
             if self.configRun:
                 self.configQuit.set()
                 self.configRun.join()
-            if settings.setAsWallpaper:
-                bkgutils.set_wallpaper(self.currentWP, use_activedesktop=False)
-            QtWidgets.QApplication.quit()
+                self.secTimer.stop()
+                self.newsTimer.stop()
+                self.configTimer.stop()
 
         if isinstance(event, QtGui.QKeyEvent):
 
@@ -1386,9 +1399,9 @@ class UpdateData(QtWidgets.QMainWindow):
                 if self.configRun:
                     self.configQuit.set()
                     self.configRun.join()
-                if settings.setAsWallpaper:
-                    bkgutils.set_wallpaper(self.currentWP, use_activedesktop=False)
-                QtWidgets.QApplication.quit()
+                    self.secTimer.stop()
+                    self.newsTimer.stop()
+                    self.configTimer.stop()
 
             elif "1" <= QtGui.QKeySequence(key).toString() <= str(len(settings.location)) and \
                     not settings.clockMode and self.keyP != key:
@@ -1486,12 +1499,14 @@ class UpdateNews(QtCore.QThread):
 
 def sigint_handler(*args):
     # https://stackoverflow.com/questions/4938723/what-is-the-correct-way-to-make-my-pyqt-application-quit-when-killed-from-the-co
-    qtutils.sendkeys(win, "Esc")
-    # app.closeAllWindows()
+    app.closeAllWindows()
 
 
-def exception_hook(exctype, value, traceback):
-    sys._excepthook(exctype, value, traceback)
+def exception_hook(exctype, value, tb):
+    # https://stackoverflow.com/questions/56991627/how-does-the-sys-excepthook-function-work-with-pyqt5
+    traceback_formated = traceback.format_exception(exctype, value, tb)
+    traceback_string = "".join(traceback_formated)
+    print(traceback_string, file=sys.stderr)
     sys.exit(1)
 
 
@@ -1508,6 +1523,8 @@ if __name__ == "__main__":
         sys.excepthook = exception_hook
     win = Window()
     win.show()
+    if settings.setAsWallpaper and ("macOS" in platform.platform() or "Darwin" in platform.platform()):
+        bkgutils.sendBehind(wconstants.SYSTEM_CAPTION)
     try:
         app.exec_()
     except:

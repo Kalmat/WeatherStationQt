@@ -135,3 +135,61 @@ def convert_win_direction(code, lang):
     }
 
     return direction[lang][(value % 16)]
+
+
+def get_coordinates(url):
+
+    coordinates = []
+    try:
+        with urllib.request.urlopen(url) as data:
+            resp = json.loads(data.read().decode('utf8'))
+
+        for i in range(20):
+            try:
+                coordinates.append([resp[i]["display_name"], resp[i]["lat"], resp[i]["lon"]])
+            except:
+                break
+    except:
+        pass
+
+    return coordinates
+
+
+def get_location_by_ip(url):
+
+    ret = []
+    try:
+        with urllib.request.urlopen(url) as data:
+            resp = json.loads((data.read().decode('utf8')))
+
+        if resp["status"] == "success":
+            ret = [resp["city"], resp["regionName"], resp["country"], resp["lat"], resp["lon"]]
+    except:
+        pass
+
+    return ret
+
+
+# Units
+METRIC = 'metric'
+IMPERIAL = 'imperial'
+def get_distance(origin, destination, units=METRIC):
+
+    lat1, lon1 = origin
+    lat2, lon2 = destination
+    if units == METRIC:
+        radius = 6371  # km
+    elif units == IMPERIAL:
+        radius = 6371 * 0.6213712  # miles
+    else:
+        return -1
+
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) * math.sin(dlat / 2) +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) * math.sin(dlon / 2))
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    d = radius * c
+
+    return d

@@ -10,7 +10,7 @@ import utils
 import wconstants
 
 settings_file = wconstants.SETTINGS_FILE
-default_settings_file = utils.resource_path(wconstants.DEFAULT_SETTINGS_FILE)
+default_settings_file = utils.resource_path(__file__, wconstants.DEFAULT_SETTINGS_FILE)
 
 
 def read_settings_file(fallback=True):
@@ -85,11 +85,11 @@ class WeatherConfig:
         self.root.geometry('+%d+%d' % (int(x), int(y)))
         self.root.title("Weather & News Settings")
         if sys.platform.startswith('win'):
-            icon = utils.resource_path(wconstants.SETTINGS_ICON)
+            icon = utils.resource_path(__file__, wconstants.SETTINGS_ICON)
             self.root.iconbitmap(icon)
         # Not working on Linux yet (eventhough converted to .xbm or .xpm)
         # else:
-        #     icon = utils.resource_path(wconstants.SETTINGS_ICON_LINUX)
+        #     icon = utils.resource_path(__file__, wconstants.SETTINGS_ICON_LINUX)
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(padx=5)

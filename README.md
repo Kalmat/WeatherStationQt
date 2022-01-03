@@ -32,6 +32,14 @@ And finally, it should look like this with no Internet connection, or "Only Cloc
 
 ---
 
+## Requires
+
+KalmaTools v.0.0.1 or higher, that you can find here: https://bitbucket.org/Kalmat/kalmatools
+
+Download the wheel file located on dist folder, and install it on your system or virtual environment (venv) using:
+
+    pip install kalmatools-0.0.1-py3-none-any.whl
+
 ## Installation
 
 ##### For Raspberry Pi (otherwise, only steps 3 to 7 apply)
