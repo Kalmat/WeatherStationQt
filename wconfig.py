@@ -126,9 +126,13 @@ class WeatherConfig:
         self.get_News(self.news_tab)
         self.get_WorldClocks(self.clocks_tab)
 
-        while self.root and not quit_event.is_set():
-            self.root.update_idletasks()
-            self.root.update()
+
+        if quit_event:
+            while self.root and not quit_event.is_set():
+                self.root.update_idletasks()
+                self.root.update()
+        else:
+            self.root.mainloop()
 
     def get_general(self, tab):
 

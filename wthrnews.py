@@ -348,7 +348,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
         if data["alert"] != "None":
             if not self.alert_img.pixmap():
-                size = int(data["icon_now_moon_size"] * self.imgRatio)
+                size = int(data["alert_icon_size"] * self.imgRatio)
                 img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["alert_icon"]), size, size, expand=False)
                 self.alert_img.setPixmap(img)
                 self.alert_img.setStyleSheet(self.alert_label.styleSheet())
