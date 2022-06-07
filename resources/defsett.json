@@ -16,10 +16,13 @@
         "Units": "Metric"
     },
     "Appearance": {
+        "Wallpaper": "False",
         "Comment": "If Clock Mode activated, only time and date will be shown. No internet connection is required",
         "Clock_mode": "False",
+        "Comment1": "Unchecking this, background will turn fully transparent and bar title will disappear (PyQt version only)",
         "Show_background": "True",
         "Available_Background_modes": [
+            "Solid",
             "Weather",
             "Fixed"
         ],
@@ -51,8 +54,8 @@
         "News_mode": "Period"
     },
     "Colors": {
-        "Comment1": "Insert color value as per pygame.Color(color). Visit:",
-        "Comment2": "https://mike632t.wordpress.com/2018/02/10/displaying-a-list-of-the-named-colours-available-in-pygame/",
+        "Comment1": "Insert color value name. To use HTML standard, visit:",
+        "Comment2": "https://www.yourhtmlsource.com/stylesheets/namedcolours.html",
         "Color_Background": "black",
         "Color_News_background": "black",
         "With_Background": {
@@ -62,13 +65,13 @@
             "Color_Weather": "white"
         },
         "Without_Background": {
-            "Color_Clock": "turquoise3",
-            "Color_Header": "turquoise3",
+            "Color_Clock": "darkturquoise",
+            "Color_Header": "darkturquoise",
             "Color_News": "orange",
-            "Color_Weather": "turquoise3"
+            "Color_Weather": "darkturquoise"
         },
         "Color_highlight": "orange",
-        "Color_dark": "gray40",
+        "Color_dark": "darkgray",
         "Color_dim": "black",
         "Color_High_pop": "red",
         "Color_Med_pop": "orange",
@@ -119,33 +122,35 @@
         "Show_News_pics": "False",
         "Separator": "   |   ",
         "FPS": 25,
-        "Comment": "Lower FPS will consume less CPU / Higher FPS will speed up the ticker"
+        "Comment": "Lower FPS will consume less CPU / Higher FPS will speed up the ticker",
+        "Smooth": "True",
+        "Comment1": "Setting this to 'False' will consume much less CPU but will cause text stuttering"
     },
     "World_Clocks": {
         "Timezones": [
             [
-                "America/Los_Angeles",
-                "Los Angeles"
-            ],
-            [
                 "America/New_York",
                 "New York"
-            ],
-            [
-                "Europe/London",
-                "London"
             ],
             [
                 "Asia/Katmandu",
                 "Katmandu"
             ],
             [
+                "Australia/Sydney",
+                "Sydney"
+            ],
+            [
                 "Asia/Tokyo",
                 "Tokyo"
             ],
             [
-                "Australia/Sydney",
-                "Sydney"
+                "America/Los_Angeles",
+                "Los Angeles"
+            ],
+            [
+                "Europe/London",
+                "London"
             ]
         ]
     },
