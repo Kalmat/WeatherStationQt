@@ -7,10 +7,11 @@ from tkinter import ttk
 import urllib.parse
 import json
 import utils
+import wutils
 import wconstants
 
 settings_file = wconstants.SETTINGS_FILE
-default_settings_file = utils.resource_path(__file__, wconstants.DEFAULT_SETTINGS_FILE)
+default_settings_file = utils.resource_path(__file__, wconstants.RESOURCES_FOLDER) + wconstants.DEFAULT_SETTINGS_FILE
 
 
 def read_settings_file(fallback=True):
@@ -69,7 +70,7 @@ class WeatherConfig:
 
         self.terminate()
 
-    def run(self, quit_event, x=None, y=None):
+    def run(self, quit_event=None, x=None, y=None):
 
         self.config = read_settings_file()
 
@@ -85,11 +86,11 @@ class WeatherConfig:
         self.root.geometry('+%d+%d' % (int(x), int(y)))
         self.root.title("Weather & News Settings")
         if sys.platform.startswith('win'):
-            icon = utils.resource_path(__file__, wconstants.SETTINGS_ICON)
+            icon = utils.resource_path(__file__, wconstants.RESOURCES_FOLDER) + wconstants.SETTINGS_ICON
             self.root.iconbitmap(icon)
         # Not working on Linux yet (eventhough converted to .xbm or .xpm)
         # else:
-        #     icon = utils.resource_path(__file__, wconstants.SETTINGS_ICON_LINUX)
+        #     icon = utils.resource_path(__file__, wconstants.RESOURCES_FOLDER) + wconstants.SETTINGS_ICON_LINUX
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(padx=5)
@@ -125,7 +126,6 @@ class WeatherConfig:
         self.get_Weather(self.weather_tab)
         self.get_News(self.news_tab)
         self.get_WorldClocks(self.clocks_tab)
-
 
         if quit_event:
             while self.root and not quit_event.is_set():
@@ -179,10 +179,10 @@ class WeatherConfig:
         self.lon = "0"
         self.currSuccess = False
 
-        self.loc = tk.Entry(tab, width=30)
-        self.loc.insert(0, self.currloc)
-        self.loc.config(state="readonly")
-        self.loc.grid(row=6, column=6, sticky=tk.NW, padx=self.padx, pady=self.pady)
+        self.loc = tk.StringVar(master=self.root, value=self.currloc)
+        loc = tk.Entry(tab, width=30, textvariable=self.loc)
+        loc.config(state="readonly")
+        loc.grid(row=6, column=6, sticky=tk.NW, padx=self.padx, pady=self.pady)
 
         bloc = tk.Button(tab, text="Get Location", command=(lambda: self.getLoc(tab)))
         bloc.grid(row=6, column=8, sticky=tk.NW, padx=self.padx, pady=self.pady)
@@ -199,7 +199,7 @@ class WeatherConfig:
         if not self.config["Weather"]["Use_current"] == "True" and self.currSuccess:
             loc1 = (float(self.lat), float(self.lon))
             loc2 = (float(self.config["Weather"]["Locations"][0][1].split("lat=")[1].split("&")[0]), float(self.config["Weather"]["Locations"][0][1].split("&lon=")[1]))
-            dist = utils.get_distance(loc1, loc2, self.config[section]["Units"])
+            dist = wutils.get_distance(loc1, loc2, self.config[section]["Units"])
             if dist > int(wconstants.distLimit[wconstants.AVAIL_UNITS[self.config["General"]["Units"]]]):
                 label = tk.Label(tab, text=("(!) WARNING. Weather data might be wrong since Current and Default locations are far ("
                                             + str(dist) + (" miles)" if self.config["General"]["Units"] == wconstants.IMPERIAL else " Km)")))
@@ -213,21 +213,23 @@ class WeatherConfig:
     def getLoc(self, tab):
 
         if not self.currSuccess:
-            cLocation = utils.get_location_by_ip(wconstants.gIPURL % self.config["General"]["Language"])
+            cLocation = wutils.get_location_by_ip(wconstants.gIPURL % self.config["General"]["Language"])
             if cLocation:
                 self.currloc = (cLocation[0] + (", " + cLocation[1] if cLocation[1] else "") +
-                           (", " + cLocation[2] if cLocation[2] else ""))
+                               (", " + cLocation[2] if cLocation[2] else ""))
                 self.lat = cLocation[3]
                 self.lon = cLocation[4]
                 self.currSuccess = True
             else:
                 self.currloc = "(Not found)"
 
-            self.loc.destroy()
-            self.loc = tk.Entry(tab, width=30)
-            self.loc.insert(0, self.currloc)
-            self.loc.config(state="readonly")
-            self.loc.grid(row=6, column=6, sticky=tk.NW, padx=self.padx, pady=self.pady)
+            self.loc.set(self.currloc)
+            self.wloc.set(self.currloc)
+            self.wlat.set(self.lat)
+            self.wlon.set(self.lon)
+            if not self.currSuccess:
+                self.usecurr.set(False)
+                self.curr.config(state=tk.DISABLED)
 
     def reset_settings(self, tab):
 
@@ -782,31 +784,29 @@ class WeatherConfig:
 
         label = tk.Label(tab, text="City description:")
         label.grid(row=1, column=0, sticky=tk.NW, padx=self.gapx, pady=self.pady)
-        loc = tk.Entry(tab, width=20)
-        loc.insert(0, self.loc.get())
+        self.wloc = tk.StringVar(master=self.root, value=self.loc.get())
+        loc = tk.Entry(tab, width=20, textvariable=self.wloc)
         loc.config(state="readonly")
         loc.grid(row=1, column=1, sticky=tk.NW, padx=self.padx, pady=self.pady)
 
         label = tk.Label(tab, text="Latitude:")
         label.grid(row=1, column=2, sticky=tk.NW, padx=self.padx, pady=self.pady)
-        lat = tk.Entry(tab, width=10)
-        lat.insert(0, self.lat)
+        self.wlat = tk.StringVar(master=self.root, value=self.lat)
+        lat = tk.Entry(tab, width=10, textvariable=self.wlat)
         lat.config(state="readonly")
         lat.grid(row=1, column=3, sticky=tk.NW, padx=self.padx, pady=self.pady)
 
         label = tk.Label(tab, text="Longitude:")
         label.grid(row=1, column=4, sticky=tk.NW, padx=self.padx, pady=self.pady)
-        lon = tk.Entry(tab, width=10)
-        lon.insert(0, self.lon)
+        self.wlon = tk.StringVar(master=self.root, value=self.lon)
+        lon = tk.Entry(tab, width=10, textvariable=self.wlon)
         lon.config(state="readonly")
         lon.grid(row=1, column=5, sticky=tk.NW, padx=self.padx, pady=self.pady)
 
         self.usecurr = tk.StringVar(master=self.root, value=self.config[section]["Use_current"])
-        curr = tk.Checkbutton(tab, text="Use this current location (If wrong, uncheck and set a new Default location below)",
-                              variable=self.usecurr, onvalue="True", offvalue="False")
-        if not self.currSuccess:
-            curr.config(state=tk.DISABLED)
-        curr.grid(row=2, column=0, columnspan=4, sticky=tk.NW, padx=self.gapx, pady=self.pady)
+        self.curr = tk.Checkbutton(tab, text="Use this current location (If wrong, uncheck and set a new Default location below)",
+                                   variable=self.usecurr, onvalue="True", offvalue="False", command=(lambda: self.getLoc(tab)))
+        self.curr.grid(row=2, column=0, columnspan=4, sticky=tk.NW, padx=self.gapx, pady=self.pady)
 
         label = tk.Label(tab, text="Locations stored on Settings (use Search feature to find and set other locations):")
         label.grid(row=3, column=0, columnspan=3, sticky=tk.NW, padx=self.padx, pady=self.pady)
@@ -889,7 +889,7 @@ class WeatherConfig:
     def search(self, tab):
 
         q = urllib.parse.quote(self.city.get() + ("," + self.prov.get() if self.prov.get() else "") + ("," + self.country.get() if self.country.get() else ""))
-        coord = utils.get_coordinates(wconstants.gURL % q)
+        coord = wutils.get_coordinates(wconstants.gURL % q)
 
         if coord:
             text = "Search results (copy-paste latitude and longitude to change stored settings location)"
@@ -945,9 +945,9 @@ class WeatherConfig:
         altern = tk.Checkbutton(tab, text='Alternate News source', variable=self.altern, onvalue="True", offvalue="False")
         altern.grid(row=0, column=0, sticky=tk.NW, padx=self.padx, pady=self.pady)
 
-        self.pics = tk.StringVar(master=self.root, value=self.config[section]["Show_News_pics"])
-        pics = tk.Checkbutton(tab, text='Show News pictures', variable=self.pics, onvalue="True", offvalue="False")
-        pics.grid(row=1, column=0, sticky=tk.NW, padx=self.padx, pady=self.pady)
+        # self.pics = tk.StringVar(master=self.root, value=self.config[section]["Show_News_pics"])
+        # pics = tk.Checkbutton(tab, text='Show News pictures', variable=self.pics, onvalue="True", offvalue="False")
+        # pics.grid(row=1, column=0, sticky=tk.NW, padx=self.padx, pady=self.pady)
 
         label = tk.Label(tab, text="News separator")
         label.grid(row=2, column=0, sticky=tk.NW, padx=self.padx, pady=self.pady)
@@ -968,7 +968,7 @@ class WeatherConfig:
         section = "News"
 
         self.config[section]["Alternate_News_source"] = self.altern.get()
-        self.config[section]["Show_News_pics"] = self.pics.get()
+        # self.config[section]["Show_News_pics"] = self.pics.get()
         self.config[section]["Separator"] = self.sep.get()
         self.config[section]["FPS"] = int(self.fps.get())
 
@@ -1059,4 +1059,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

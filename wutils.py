@@ -1,10 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import json
 import time
 import datetime
 import math
 import decimal
+import urllib.request
 
 
 def convert_weather_code(code):

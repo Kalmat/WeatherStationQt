@@ -66,24 +66,24 @@ DT_FADEOUT = "FadeOut"
 
 # Folders
 RESOURCES_FOLDER = 'resources/'
-BKG_FOLDER = 'resources/wbkg/'
-ICON_FOLDER = 'resources/icons'
-MOON_FOLDER = 'resources/moon/'
+BKG_FOLDER = RESOURCES_FOLDER + 'wbkg/'
+ICON_FOLDER = RESOURCES_FOLDER + 'icons'
+MOON_FOLDER = RESOURCES_FOLDER + 'moon/'
 MOON_W_FOLDER = ICON_FOLDER + ICONSET_REALISTIC
-SUNSIGNS_FOLDER = 'resources/sunsigns/'
-FONTS_FOLDER = './resources/fonts/'
-ALERT_ICONFOLDER = 'resources/'
+SUNSIGNS_FOLDER = RESOURCES_FOLDER + 'sunsigns/'
+FONTS_FOLDER = RESOURCES_FOLDER + 'fonts/'
+ALERT_ICONFOLDER = RESOURCES_FOLDER
 
 # Other
 SETTINGS_FILE = "settings.json"
-DEFAULT_SETTINGS_FILE = "resources/defsett.json"
-HELP_FILE = "resources/help.json"
+DEFAULT_SETTINGS_FILE = "defsett.json"
+HELP_FILE = "help.json"
 ALERT_ICON = "alert"
 SYSTEM_CAPTION = "Weather and News by alef"
-SYSTEM_CAPTION_CLOCK = "Just a Clock by alef"
-SYSTEM_ICON = ICON_FOLDER + ICONSET_FLATFULLCOLOR + "30.png"
-SETTINGS_ICON = "resources/settings.ico"
-SETTINGS_ICON_LINUX = "resources/settings.xpm"
+SYSTEM_CAPTION_CLOCK = "World Clock by alef"
+SYSTEM_ICON = "30.png"
+SETTINGS_ICON = "settings.ico"
+SETTINGS_ICON_LINUX = "settings.xpm"
 DEFAULT_ICON = "na"
 ICON_EXT = ".png"
 BKG_EXT = ".jpg"

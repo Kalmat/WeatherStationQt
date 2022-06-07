@@ -19,6 +19,7 @@ import bkgutils
 import qtutils
 import utils
 import webutils
+import pywinctl as pwc
 from PyQt5 import QtWidgets, QtCore, QtGui
 
 import settings
@@ -61,18 +62,20 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.widgets = self.centralwidget.findChildren(QtCore.QObject)
 
         x, y, locIndex, ncount, nsource, show_help = self.getOpts()
+        self.xmax, self.ymax = settings.dispSize
+        if settings.setAsWallpaper:
+            x, y, self.xmax, self.ymax = pwc.getWorkArea()
         self.xmax, self.ymax = qtutils.initDisplay(parent=self,
                                                    pos=(x, y),
-                                                   size=settings.dispSize,
+                                                   size=(self.xmax, self.ymax),
                                                    noResize=True,
-                                                   setAsWallpaper=settings.setAsWallpaper,
+                                                   frameless=settings.setAsWallpaper,
+                                                   # noFocus=settings.setAsWallpaper,
+                                                   # aob=settings.setAsWallpaper,
+                                                   # setAsWallpaper=settings.setAsWallpaper,
                                                    opacity=255 * (1 if settings.showBkg else 0),
                                                    caption=wconstants.SYSTEM_CAPTION,
-                                                   icon=wconstants.SYSTEM_ICON)
-        if settings.setAsWallpaper:
-            x, y, self.xmax, self.ymax = bkgutils.getWorkArea()
-            self.setGeometry(x, y, self.xmax, self.ymax)
-
+                                                   icon=utils.resource_path(__file__, wconstants.ICON_FOLDER + wconstants.ICONSET_FLATFULLCOLOR) + wconstants.SYSTEM_ICON)
         self.xmargin = self.xmax * 0.01
         self.ymargin = self.ymax * 0.01
         self.xgap = self.xmargin * 3
@@ -82,7 +85,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.imgRatio = 1 if self.dispRatio > 4/3 else 0.9
         self.fineTuning = 0.45
 
-        self.font = qtutils.loadFont(wconstants.FONTS_FOLDER + wconstants.numberfont)
+        self.font = qtutils.loadFont(utils.resource_path(__file__, wconstants.FONTS_FOLDER) + wconstants.numberfont)
         self.convertQtColors()
         self.font_color = settings.clockc
         # self.setToolTip(qtutils.setHTMLStyle('Click the tray icon to show Quick Menu', color="black", bkgcolor="white"))
@@ -100,6 +103,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                                        smooth=settings.smooth)
 
         self.update_data = None
+        self.iconf = utils.resource_path(__file__, wconstants.ICON_FOLDER + settings.iconSet)
         self.bkg = ""
         self.moon = ""
         self.sunsign = ""
@@ -119,7 +123,9 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.clock4 = None
         self.oldPos = self.pos()
 
-        self.sentBehind = False
+        if settings.setAsWallpaper:
+            pwc.Window(self.winId()).sendBehind()
+
         self.updateDataStart(locIndex, ncount, nsource)
 
         self.menu = Menu(self)
@@ -234,10 +240,6 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
     @QtCore.pyqtSlot(dict)
     def onDataChanged(self, data):
 
-        if not self.sentBehind and settings.showBkg and settings.setAsWallpaper and ("Windows" in platform.platform() or "Linux" in platform.platform()):
-            # Had to bring this here because it doesn't find the window (title) until 3-4 iterations
-            self.sentBehind = bkgutils.sendBehind(wconstants.SYSTEM_CAPTION)
-
         if settings.debug: print(data)
         contents = data.keys()
 
@@ -285,7 +287,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
     def repaintBKG(self, data):
         if self.bkg != data["bkg"]:
             self.bkg = data["bkg"]
-            img = QtGui.QPixmap(utils.resource_path(__file__, self.bkg))
+            img = QtGui.QPixmap(utils.resource_path(__file__, wconstants.BKG_FOLDER) + self.bkg)
             img = img.scaled(self.xmax, self.ymax, QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
             self.bkg_img.setPixmap(img)
 
@@ -304,14 +306,14 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         elif self.moon != icon or not self.moon_img.pixmap():
             self.moon = icon
             size = int(data["moon_icon_size"] * self.imgRatio)
-            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, self.moon), size, size, expand=False)
+            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.MOON_FOLDER) + self.moon, size, size, expand=False)
             self.moon_img.setPixmap(img)
 
     def repaintSUNSIGN(self, data):
         if self.sunsign != data["sunsign_icon"]:
             self.sunsign = data["sunsign_icon"]
             size = int(data["sunsign_icon_size"] * self.imgRatio)
-            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, self.sunsign), size, size, expand=False)
+            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.SUNSIGNS_FOLDER) + self.sunsign, size, size, expand=False)
             self.sunsign_img.setPixmap(img)
 
     def repaintSEP(self, data):
@@ -327,14 +329,14 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         if self.iconNow != data["icon_now"]:
             self.iconNow = data["icon_now"]
             size = data["icon_now_size"] * self.imgRatio
-            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["icon_now"]), size, size, expand=False)
+            img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["icon_now_folder"]) + self.iconNow, size, size, expand=False)
             self.cc_img.setPixmap(img)
             self.cc_img.adjustSize()
         if "icon_now_moon_icon" in data.keys():
             if self.moonIconNow != data["icon_now_moon_icon"]:
                 self.moonIconNow = data["icon_now_moon_icon"]
                 size = int(data["icon_now_moon_size"] * self.imgRatio)
-                img2 = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["icon_now_moon_icon"]), size, size, expand=False)
+                img2 = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.MOON_W_FOLDER) + self.moonIconNow, size, size, expand=False)
                 self.cc_moon_img.setPixmap(img2)
                 self.cc_moon_img.adjustSize()
         else:
@@ -349,7 +351,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         if data["alert"] != "None":
             if not self.alert_img.pixmap():
                 size = int(data["alert_icon_size"] * self.imgRatio)
-                img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data["alert_icon"]), size, size, expand=False)
+                img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.ALERT_ICONFOLDER) + data["alert_icon"], size, size, expand=False)
                 self.alert_img.setPixmap(img)
                 self.alert_img.setStyleSheet(self.alert_label.styleSheet())
             self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
@@ -372,7 +374,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                     w.setFixedHeight(w.fontMetrics().height())
                 else:
                     size = int(data["ff_icon_size"] * self.imgRatio)
-                    img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data[name]), size, size, expand=False)
+                    img = qtutils.resizeImageWithQT(self.iconf + data[name], size, size, expand=False)
                     w.setPixmap(img)
                     w.adjustSize()
 
@@ -394,7 +396,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 else:
                     if name in keys:
                         size = int(data["fh_icon_size"] * self.imgRatio)
-                        img = qtutils.resizeImageWithQT(utils.resource_path(__file__, data[name]), size, size, expand=False)
+                        img = qtutils.resizeImageWithQT(self.iconf + data[name], size, size, expand=False)
                         w.setPixmap(img)
                         w.adjustSize()
                     else:
@@ -421,7 +423,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
             self.help_label = QtWidgets.QLabel()
             self.help_label.setFont(self.cc_other_cond_label.font())
             if not self.help:
-                with open(utils.resource_path(__file__, wconstants.HELP_FILE), encoding='utf-8') as file:
+                with open(utils.resource_path(__file__, wconstants.RESOURCES_FOLDER) + wconstants.HELP_FILE, encoding='utf-8') as file:
                     self.help = json.load(file)
             self.help_label.setGeometry(int(self.xgap*2), int(self.ygap*2), self.xmax - int(self.xgap*4), self.ymax - int(self.ygap*4))
             self.help_label.setStyleSheet(qtutils.setBkgColorAlpha(self.marquee.styleSheet(), 255))
@@ -628,7 +630,7 @@ class Menu(QtWidgets.QWidget):
         self.contextMenu.addAction("Show/Hide Help", lambda: self.execAction("H"))
         self.contextMenu.addAction("Quit", lambda: self.execAction("Q"))
 
-        self.trayIcon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(utils.resource_path(__file__, wconstants.SYSTEM_ICON)), self)
+        self.trayIcon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(utils.resource_path(__file__, wconstants.ICON_FOLDER + wconstants.ICONSET_FLATFULLCOLOR) + wconstants.SYSTEM_ICON), self)
         self.trayIcon.setContextMenu(self.contextMenu)
         self.trayIcon.setToolTip("Weather and News by alef")
         self.trayIcon.show()
@@ -675,7 +677,6 @@ class UpdateData(QtWidgets.QMainWindow):
         self.prevMinimized = False
 
         # Settings
-        self.iconf = wconstants.ICON_FOLDER + settings.iconSet
         self.iconScaleC = int(
             self.ymax * wconstants.iconSizeC / wconstants.REF_Y * wconstants.ICON_SCALE.get(settings.iconSet, 1.0))
         self.iconScaleF = int(
@@ -846,7 +847,7 @@ class UpdateData(QtWidgets.QMainWindow):
             # Prepare Background only if changed since last time
             if code != self.bkgCodePrev:
                 self.bkgCodePrev = code
-                data = {"bkg": wconstants.BKG_FOLDER + code + wconstants.BKG_EXT}
+                data = {"bkg": code + wconstants.BKG_EXT}
                 self.data[wconstants.BKG] = data
 
     def display_header(self):
@@ -894,7 +895,7 @@ class UpdateData(QtWidgets.QMainWindow):
             current_sunsign = wutils.get_constellation()
             if self.sunsign != current_sunsign:
                 self.sunsign = current_sunsign
-                data = {"sunsign_icon": wconstants.SUNSIGNS_FOLDER + current_sunsign + wconstants.ICON_EXT,
+                data = {"sunsign_icon": current_sunsign + wconstants.ICON_EXT,
                         "sunsign_icon_size": wconstants.sunsignIconSize * self.ymax / wconstants.REF_Y}
                 self.data[wconstants.SUNSIGN] = data
 
@@ -902,7 +903,7 @@ class UpdateData(QtWidgets.QMainWindow):
         if settings.moonMode in (wconstants.MOON_BOTH, wconstants.MOON_ONHEADER):
             if self.moon != self.prevMoon:
                 self.prevMoon = self.moon
-                data = {"moon_icon": wconstants.MOON_FOLDER + self.moon + wconstants.ICON_EXT,
+                data = {"moon_icon": self.moon + wconstants.ICON_EXT,
                         "moon_icon_size": wconstants.sunsignIconSize * self.ymax / wconstants.REF_Y * 0.7}
                 self.data[wconstants.MOON] = data
 
@@ -1137,7 +1138,7 @@ class UpdateData(QtWidgets.QMainWindow):
 
         # PREPARE Current conditions Icon
         icon = self.iconNow
-        folder = self.iconf
+        folder = wconstants.ICON_FOLDER + settings.iconSet
         scale = self.iconScaleC
         drawMoonWIcon = False
         drawMoonPhase = settings.moonMode in (wconstants.MOON_ONCURRENT, wconstants.MOON_BOTH)
@@ -1156,18 +1157,19 @@ class UpdateData(QtWidgets.QMainWindow):
 
         data = {}
         if drawMoonWIcon:
-            data["icon_now_moon_icon"] = wconstants.MOON_W_FOLDER + self.iconC2 + wconstants.ICON_EXT
+            data["icon_now_moon_icon"] = self.iconC2 + wconstants.ICON_EXT
             data["icon_now_moon_size"] = self.iconScaleC * 0.7
 
         if drawMoonPhase:
             self.prevMoon = self.moon
-            self.data[wconstants.MOON] = {"moon_icon": wconstants.MOON_FOLDER + self.moon + wconstants.ICON_EXT,
+            self.data[wconstants.MOON] = {"moon_icon": self.moon + wconstants.ICON_EXT,
                                           "moon_icon_size": wconstants.sunsignIconSize * self.ymax / wconstants.REF_Y}
         elif settings.moonMode != wconstants.MOON_ONHEADER:
             self.prevMoon = ""
             self.data[wconstants.MOON] = {"moon_icon": "None"}
 
-        data["icon_now"] = folder + icon + wconstants.ICON_EXT
+        data["icon_now"] = icon + wconstants.ICON_EXT
+        data["icon_now_folder"] = folder
         data["icon_now_size"] = scale
         data["temp"] = self.temp
         data["temp_text"] = self.temptext
@@ -1196,8 +1198,8 @@ class UpdateData(QtWidgets.QMainWindow):
                 prefix = self.alert_start + " - " + self.alert_end + ": "
             data = {"alert": prefix + self.alert,
                     "alert_color": settings.chighlight,
-                    "alert_icon": wconstants.ALERT_ICONFOLDER + wconstants.ALERT_ICON + wconstants.ICON_EXT,
-                    "alert_icon_size": wconstants.sunsignIconSize * self.ymax / wconstants.REF_Y}
+                    "alert_icon": wconstants.ALERT_ICON + wconstants.ICON_EXT,
+                    "alert_icon_size": wconstants.alertIconSize * self.ymax / wconstants.REF_Y}
         else:
             data = {"alert": "None"}
         self.data[wconstants.ALERT] = data
@@ -1212,7 +1214,7 @@ class UpdateData(QtWidgets.QMainWindow):
             crc = settings.crcm
 
         data = {"ff_day_" + str(subwin + 1): self.day[subwin],
-                "ff_" + str(subwin + 1) + "_img": self.iconf + self.icon[subwin] + wconstants.ICON_EXT,
+                "ff_" + str(subwin + 1) + "_img": self.icon[subwin] + wconstants.ICON_EXT,
                 "ff_icon_size": self.iconScaleF,
                 "ff_max_" + str(subwin + 1): self.temps[subwin][0],
                 "ff_min_" + str(subwin + 1): self.temps[subwin][1],
@@ -1226,7 +1228,7 @@ class UpdateData(QtWidgets.QMainWindow):
         data = {"fh_temp_"+str(subwin+1): self.hTemps[subwin]}
         if self.hIcons[subwin] != self.hIconPrev or subwin == 0:
             self.hIconPrev = self.hIcons[subwin]
-            data["fh_"+str(subwin+1)+"_img"] = self.iconf + self.hIcons[subwin] + wconstants.ICON_EXT
+            data["fh_"+str(subwin+1)+"_img"] = self.hIcons[subwin] + wconstants.ICON_EXT
             data["fh_icon_size"] = int(self.iconScaleF / 2)
         if subwin % 2 == 0:
             data["fh_time_"+str(subwin+1)] = self.hHours[subwin]
@@ -1523,8 +1525,6 @@ if __name__ == "__main__":
         sys.excepthook = exception_hook
     win = Window()
     win.show()
-    if settings.setAsWallpaper and ("macOS" in platform.platform() or "Darwin" in platform.platform()):
-        bkgutils.sendBehind(wconstants.SYSTEM_CAPTION)
     try:
         app.exec_()
     except:
