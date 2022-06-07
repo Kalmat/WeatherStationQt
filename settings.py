@@ -77,7 +77,7 @@ alternSource = config[section]["Alternate_News_source"] == "True"
 showPics = config[section]["Show_News_pics"] == "True"
 separator = config[section]["Separator"]
 fps = config[section]["FPS"]
-smooth = config[section]["Smooth"]
+smooth = config[section]["Smooth"] == "True"
 
 section = "World_Clocks"
 timeZones = config[section]["Timezones"]
