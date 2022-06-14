@@ -31,8 +31,6 @@ import wutils
 import zoneinfo
 from wthrnews_ui import Ui_MainWindow
 
-settings.debug = True
-
 
 class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
@@ -69,17 +67,19 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.xmax, self.ymax = settings.dispSize
         if settings.setAsWallpaper:
             x, y, self.xmax, self.ymax = pwc.getWorkArea()
-        self.xmax, self.ymax = qtutils.initDisplay(parent=self,
-                                                   pos=(x, y),
-                                                   size=(self.xmax, self.ymax),
-                                                   noResize=True,
-                                                   frameless=settings.setAsWallpaper,
-                                                   # noFocus=settings.setAsWallpaper,
-                                                   # aob=settings.setAsWallpaper,
-                                                   # setAsWallpaper=settings.setAsWallpaper,
-                                                   opacity=255 * (1 if settings.showBkg else 0),
-                                                   caption=wconstants.SYSTEM_CAPTION,
-                                                   icon=utils.resource_path(__file__, wconstants.ICON_FOLDER + wconstants.ICONSET_FLATFULLCOLOR) + wconstants.SYSTEM_ICON)
+        self.xmax, self.ymax = qtutils.initDisplay(
+            parent=self,
+           pos=(x, y),
+           size=(self.xmax, self.ymax),
+           noResize=True,
+           frameless=settings.setAsWallpaper,
+           # noFocus=settings.setAsWallpaper,
+           # aob=settings.setAsWallpaper,
+           # setAsWallpaper=settings.setAsWallpaper,
+           opacity=255 * (1 if settings.showBkg else 0),
+           caption=wconstants.SYSTEM_CAPTION,
+           icon=utils.resource_path(__file__, wconstants.ICON_FOLDER + wconstants.ICONSET_FLATFULLCOLOR) + wconstants.SYSTEM_ICON
+        )
         self.xmargin = self.xmax * 0.01
         self.ymargin = self.ymax * 0.01
         self.xgap = self.xmargin * 3
@@ -367,16 +367,18 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
     def repaintALERT(self, data):
 
         if data:
-
             if data["alert"] != "None":
                 if not self.alert_img.pixmap():
                     size = int(data["alert_icon_size"] * self.imgRatio)
                     img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.ALERT_ICONFOLDER) + data["alert_icon"], size, size, expand=False)
                     self.alert_img.setPixmap(img)
+                    self.alertPixmapBAK = img
                     self.alert_img.setStyleSheet(self.alert_label.styleSheet())
+                self.alertPixmap = self.alertPixmapBAK
                 self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
                 self.alertAdjusted = False
             else:
+                self.alertPixmap = None
                 self.alert_img.clear()
                 self.alert_label.clear()
         elif not self.alertAdjusted and self.alert_label.isVisible():
@@ -435,8 +437,6 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 self.gridLayout.replaceWidget(self.alert_label, self.marquee)
                 self.marquee.start()
                 self.alert_label.hide()
-                # self.alert_img.hide()
-                self.alertPixmap = self.alert_img.pixmap()
                 self.alert_img.setPixmap(QtGui.QPixmap())
                 self.alert_img.setText(data["nsource"])
 
@@ -444,7 +444,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
             if self.showingNews:
                 self.showingNews = False
                 self.alert_img.clear()
-                self.alert_img.setPixmap(self.alertPixmap)
+                if self.alertPixmap:
+                    self.alert_img.setPixmap(self.alertPixmap)
                 self.alert_img.show()
                 self.alert_label.show()
                 self.gridLayout.replaceWidget(self.marquee, self.alert_label)
