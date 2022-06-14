@@ -196,6 +196,9 @@ gIPURL = 'http://ip-api.com/json/?lang=%s'     # NO Key required, but not precis
 # gURL = 'https://api.ipgeolocation.io/ipgeo?apiKey=%s' % wkey.ipgeolocation_key  # Or use this instead (more precise, but needs key)
 gURL = 'http://nominatim.openstreetmap.org/search?q=%s&format=json&addressdetails=1'  # No key required. Retrieves coordinates from address
 
+# Translation
+tUrl = "https://api.mymemory.translated.net/get?q=%s&langpair=en|%s"
+
 # HTTP Connection
 # Definitely, requests.get was caching... Maybe "Connection: keep-alive" which seems to be set by default!
 headers = {'Cache-Control': 'no-cache, no-store, max-age=0, pre-check=0, post-check=0, must-revalidate, proxy-revalidate',

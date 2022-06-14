@@ -13,10 +13,12 @@ import threading
 import time
 import traceback
 import urllib.request
+import urllib.parse
 import xml.etree.ElementTree as ET
 
 import bkgutils
 import qtutils
+import requests
 import utils
 import webutils
 import pywinctl as pwc
@@ -28,6 +30,8 @@ import wconstants
 import wutils
 import zoneinfo
 from wthrnews_ui import Ui_MainWindow
+
+settings.debug = True
 
 
 class Window(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -89,18 +93,19 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.convertQtColors()
         self.font_color = settings.clockc
         # self.setToolTip(qtutils.setHTMLStyle('Click the tray icon to show Quick Menu', color="black", bkgcolor="white"))
-
-        if settings.showBkg:
-            style = qtutils.setStyleSheet(self.alert_label.styleSheet(), settings.nBkg, settings.nc)
-        else:
-            style = qtutils.setColor(self.alert_label.styleSheet(), settings.nc)
+        self.location_initPointSize = None
+        self.locAdjusted = False
+        self.alertAdjusted = False
 
         self.resizeUI()
 
-        self.marquee = qtutils.Marquee(parent=self.alert_label,
-                                       stylesheet=style,
-                                       direction=QtCore.Qt.RightToLeft,
-                                       smooth=settings.smooth)
+        self.marquee = qtutils.Marquee(
+            parent=self,
+            font=self.alert_label.font(),
+            color=settings.nc,
+            bkgColor=settings.nBkg,
+            direction=QtCore.Qt.RightToLeft
+        )
 
         self.update_data = None
         self.iconf = utils.resource_path(__file__, wconstants.ICON_FOLDER + settings.iconSet)
@@ -122,6 +127,7 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         self.clock3 = None
         self.clock4 = None
         self.oldPos = self.pos()
+        self.firstRun = True
 
         if settings.setAsWallpaper:
             pwc.Window(self.winId()).sendBehind()
@@ -171,10 +177,10 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def convertQtColors(self):
         settings.cBkg = qtutils.getRGBAfromColorName(QtGui.QColor(settings.cBkg))
-        settings.nBkg = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nBkg))
+        # settings.nBkg = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nBkg))
         settings.clockc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.clockc))
         settings.clockh = qtutils.getRGBAfromColorName(QtGui.QColor(settings.clockh))
-        settings.nc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nc))
+        # settings.nc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nc))
         settings.wc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.wc))
         settings.chighlight = qtutils.getRGBAfromColorName(QtGui.QColor(settings.chighlight))
         settings.cdark = qtutils.getRGBAfromColorName(QtGui.QColor(settings.cdark))
@@ -246,8 +252,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         if wconstants.BKG in contents:
             self.repaintBKG(data[wconstants.BKG])
 
-        if wconstants.HEADER in contents:
-            self.repaintHEADER(data[wconstants.HEADER])
+        if wconstants.HEADER in contents or (not self.locAdjusted and self.location_label.isVisible()):
+            self.repaintHEADER(data[wconstants.HEADER] if wconstants.HEADER in contents else None)
 
         if wconstants.MOON in contents:
             self.repaintMOON(data[wconstants.MOON])
@@ -269,8 +275,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
                 data.pop(wconstants.ONLY_CLOCK, False)
             self.repaintCC(data[wconstants.CC])
 
-        if wconstants.ALERT in contents:
-            self.repaintALERT(data[wconstants.ALERT])
+        if wconstants.ALERT in contents or (not self.alertAdjusted and self.alert_label.isVisible()):
+            self.repaintALERT(data[wconstants.ALERT] if wconstants.ALERT in contents else None)
 
         if wconstants.FF_DAILY in contents:
             self.repaintFF(data[wconstants.FF_DAILY])
@@ -292,11 +298,23 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
             self.bkg_img.setPixmap(img)
 
     def repaintHEADER(self, data):
-        self.day_label.setText(data["day"])
-        self.day_week_label.setText(data["day_week"])
-        self.month_label.setText(data["month"])
-        self.by_label.setText(qtutils.setHTMLStyle(data["source"], color=settings.chighlight, strong=True) + data["by"])
-        self.location_label.setText(data["location"])
+        if data:
+            self.header_data = data
+            self.day_label.setText(data["day"])
+            self.day_week_label.setText(data["day_week"])
+            self.month_label.setText(data["month"])
+            self.by_label.setText(qtutils.setHTMLStyle(data["source"], color=settings.chighlight, strong=True) + data["by"])
+            self.location_label.setText(data["location"])
+            self.location_label.setVisible(True)
+            self.location_label.setText(data["location"])
+            if not self.location_initPointSize:
+                self.location_initPointSize = self.location_label.font().pointSize()
+            self.locAdjusted = False
+
+        elif not self.locAdjusted and self.location_label.isVisible():
+            # This will not take effect until widget is already shown
+            self.locAdjusted = True
+            self.location_label.setFont(qtutils.adjustFont(self.location_label, self.location_initPointSize, qtutils.getPlainText(self.location_label)))
 
     def repaintMOON(self, data):
         icon = data.get("moon_icon", "None")
@@ -348,16 +366,22 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def repaintALERT(self, data):
 
-        if data["alert"] != "None":
-            if not self.alert_img.pixmap():
-                size = int(data["alert_icon_size"] * self.imgRatio)
-                img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.ALERT_ICONFOLDER) + data["alert_icon"], size, size, expand=False)
-                self.alert_img.setPixmap(img)
-                self.alert_img.setStyleSheet(self.alert_label.styleSheet())
-            self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
-        else:
-            self.alert_img.clear()
-            self.alert_label.clear()
+        if data:
+
+            if data["alert"] != "None":
+                if not self.alert_img.pixmap():
+                    size = int(data["alert_icon_size"] * self.imgRatio)
+                    img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.ALERT_ICONFOLDER) + data["alert_icon"], size, size, expand=False)
+                    self.alert_img.setPixmap(img)
+                    self.alert_img.setStyleSheet(self.alert_label.styleSheet())
+                self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
+                self.alertAdjusted = False
+            else:
+                self.alert_img.clear()
+                self.alert_label.clear()
+        elif not self.alertAdjusted and self.alert_label.isVisible():
+            self.alertAdjusted = True
+            self.alert_label.setFont(qtutils.adjustFont(self.alert_label, self.marquee.font().pointSize(), qtutils.getPlainText(self.alert_label)))
 
     def repaintFF(self, data):
         for w in self.widgets:
@@ -404,19 +428,28 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def repaintNEWS(self, data):
         if "titles" in data.keys():
-            self.showingNews = True
-            self.marquee.setText(data["nsource"] + data["titles"])
-            self.marquee.start()
-            self.gridLayout.replaceWidget(self.alert_label, self.marquee)
-            self.alert_label.hide()
-            self.alert_img.hide()
+            if not self.showingNews:
+                self.showingNews = True
+                self.marquee.setHtml(data["titles"])
+                self.marquee.show()
+                self.gridLayout.replaceWidget(self.alert_label, self.marquee)
+                self.marquee.start()
+                self.alert_label.hide()
+                # self.alert_img.hide()
+                self.alertPixmap = self.alert_img.pixmap()
+                self.alert_img.setPixmap(QtGui.QPixmap())
+                self.alert_img.setText(data["nsource"])
 
         elif "stop" in data.keys():
-            self.showingNews = False
-            self.alert_img.show()
-            self.alert_label.show()
-            self.gridLayout.replaceWidget(self.marquee, self.alert_label)
-            self.marquee.stop()
+            if self.showingNews:
+                self.showingNews = False
+                self.alert_img.clear()
+                self.alert_img.setPixmap(self.alertPixmap)
+                self.alert_img.show()
+                self.alert_label.show()
+                self.gridLayout.replaceWidget(self.marquee, self.alert_label)
+                self.marquee.hide()
+                self.marquee.stop()
 
     def repaintHELP(self):
         if not self.help_label:
@@ -807,7 +840,7 @@ class UpdateData(QtWidgets.QMainWindow):
     def check_location(self):
         if settings.debug: print("GET_LOC", time.strftime("%H:%M:%S"))
 
-        loc = webutils.get_location_by_ip(wconstants.gIPURL % settings.lang)
+        loc = webutils.get_location_by_ip(wconstants.gIPURL % settings.lang_code)
         if loc:
             loc1 = (float(loc[3]), float(loc[4]))
             loc2 = (float(settings.location[0][1].split("lat=")[1].split("&")[0]),
@@ -1057,6 +1090,8 @@ class UpdateData(QtWidgets.QMainWindow):
             self.alert = settings.texts["120"] + " " + \
                          settings.texts[str(wconstants.uviUnits[min(int(uvi), 11)])] + \
                          " - " + str(uvi)
+        if self.alert and settings.lang_code != "en":
+            self.alert = self.translate(self.alert, settings.lang_code)
 
         # No apparent way to detect if data has already been updated
         wUpdated = False
@@ -1102,6 +1137,20 @@ class UpdateData(QtWidgets.QMainWindow):
                 j += 1
 
         return wUpdated
+
+    def translate(self, text, lang):
+
+        safeText = urllib.parse.quote(text)
+        url = wconstants.tUrl % (safeText, lang)
+
+        try:
+            with requests.get(url, timeout=settings.timeout) as response:
+                res = response.json()
+                translated = res["responseData"]["translatedText"]
+        except:
+            translated = text
+
+        return translated
 
     def show_weather(self):
         if settings.debug: print("SHOW_WEATHER", time.strftime("%H:%M:%S"))
@@ -1283,7 +1332,7 @@ class UpdateData(QtWidgets.QMainWindow):
         if settings.alternSource:
             if self.nsource == wconstants.nsource2:
                 self.nsource = wconstants.nsource1
-                self.nURL = wconstants.nURL1 % settings.lang
+                self.nURL = wconstants.nURL1 % settings.lang_code
             else:
                 self.nsource = wconstants.nsource2
                 self.nURL = wconstants.nURL2
