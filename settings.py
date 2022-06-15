@@ -53,7 +53,7 @@ if showBkg and bkgMode == wconstants.BKG_WEATHER:
 else:
     subsection = "Without_Background"
 cBkg = config[section]["Color_Background"]
-nBkg = config[section]["Color_News_background"]
+nBkg = config[section]["Color_News_background"] if showBkg else "transparent"
 clockc = config[section][subsection]["Color_Clock"]
 clockh = config[section][subsection]["Color_Header"]
 nc = config[section][subsection]["Color_News"]

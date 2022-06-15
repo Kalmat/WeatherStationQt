@@ -177,10 +177,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def convertQtColors(self):
         settings.cBkg = qtutils.getRGBAfromColorName(QtGui.QColor(settings.cBkg))
-        # settings.nBkg = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nBkg))
         settings.clockc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.clockc))
         settings.clockh = qtutils.getRGBAfromColorName(QtGui.QColor(settings.clockh))
-        # settings.nc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nc))
         settings.wc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.wc))
         settings.chighlight = qtutils.getRGBAfromColorName(QtGui.QColor(settings.chighlight))
         settings.cdark = qtutils.getRGBAfromColorName(QtGui.QColor(settings.cdark))
@@ -190,6 +188,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
         settings.chigh = qtutils.getRGBAfromColorName(QtGui.QColor(settings.chigh))
         settings.clow = qtutils.getRGBAfromColorName(QtGui.QColor(settings.clow))
         settings.byc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.byc))
+        # settings.nBkg = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nBkg))
+        # settings.nc = qtutils.getRGBAfromColorName(QtGui.QColor(settings.nc))
 
     def resizeUI(self):
 
@@ -268,8 +268,8 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
             self.repaintTIME(data[wconstants.TIME])
 
         if wconstants.CC in contents:
-            # We need to remove clocks first when recovering from weather data errors
             if self.onlyTime:
+                # We need to remove clocks first when recovering from weather data errors
                 data[wconstants.ONLY_CLOCK] = "hide"
                 self.repaintCLOCK(data[wconstants.ONLY_CLOCK])
                 data.pop(wconstants.ONLY_CLOCK, False)
@@ -368,15 +368,16 @@ class Window(QtWidgets.QMainWindow, Ui_MainWindow):
 
         if data:
             if data["alert"] != "None":
-                if not self.alert_img.pixmap():
-                    size = int(data["alert_icon_size"] * self.imgRatio)
-                    img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.ALERT_ICONFOLDER) + data["alert_icon"], size, size, expand=False)
-                    self.alert_img.setPixmap(img)
-                    self.alertPixmapBAK = img
-                    self.alert_img.setStyleSheet(self.alert_label.styleSheet())
-                self.alertPixmap = self.alertPixmapBAK
-                self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
-                self.alertAdjusted = False
+                if not self.showingNews:
+                    if not self.alert_img.pixmap():
+                        size = int(data["alert_icon_size"] * self.imgRatio)
+                        img = qtutils.resizeImageWithQT(utils.resource_path(__file__, wconstants.ALERT_ICONFOLDER) + data["alert_icon"], size, size, expand=False)
+                        self.alert_img.setPixmap(img)
+                        self.alertPixmapBAK = img
+                        self.alert_img.setStyleSheet(self.alert_label.styleSheet())
+                    self.alertPixmap = self.alertPixmapBAK
+                    self.alert_label.setText(qtutils.setHTMLStyle(data["alert"], color=data["alert_color"], strong=True))
+                    self.alertAdjusted = False
             else:
                 self.alertPixmap = None
                 self.alert_img.clear()
@@ -1405,6 +1406,7 @@ class UpdateData(QtWidgets.QMainWindow):
             self.newsTimer.stop()
             data = {"stop": True}
             self.showingNews = False
+            self.nCount = 0
             self.data[wconstants.NEWS] = data
             self.dataChanged.emit(self.data)
             self.data.pop(wconstants.NEWS, False)
